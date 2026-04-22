@@ -1,7 +1,7 @@
 {
   "_meta": {
     "description": "Preis-Konfiguration fuer den Preisrechner.",
-    "version": 13
+    "version": 20
   },
   "_readme": [
     "JSON unterstuetzt keine echten Kommentare. Hinweise stehen deshalb in _readme und _comment.",
@@ -14,7 +14,7 @@
         "label": "Mindestpreis",
         "pricingType": "minimum_price",
         "unit": "EUR",
-        "value": 100
+        "value": 500
       }
     },
     "rounding": {
@@ -51,10 +51,10 @@
     "unitPrices": {
       "_comment": "Direkte EUR-Werte fuer die Berechnung.",
       "areaPricing": {
-        "_comment": "Dynamischer Flaechenpreis. Bis 15.000 m2 gilt der hohe Satz, ab 100.000 m2 der niedrige. Dazwischen wird exponentiell interpoliert.",
+        "_comment": "Kontinuierlicher Flaechenpreis ohne harte Stufen. Zusaetzliche Referenzpunkte formen die Kurve; zwischen ihnen wird proportional interpoliert. Kleine Flaechen liegen pro m2 deutlich hoeher, grosse Flaechen tiefer.",
         "smallProjectAreaSquareMeters": {
-          "label": "Kleines Projekt bis",
-          "pricingType": "area_threshold",
+          "label": "Referenzflaeche klein",
+          "pricingType": "reference_area",
           "unit": "m2",
           "value": 15000
         },
@@ -62,11 +62,11 @@
           "label": "Flaechenpreis kleines Projekt",
           "pricingType": "unit_price",
           "unit": "EUR/m2",
-          "value": 0.0375
+          "value": 0.033
         },
         "largeProjectAreaSquareMeters": {
-          "label": "Grosses Projekt ab",
-          "pricingType": "area_threshold",
+          "label": "Referenzflaeche gross",
+          "pricingType": "reference_area",
           "unit": "m2",
           "value": 100000
         },
@@ -74,20 +74,63 @@
           "label": "Flaechenpreis grosses Projekt",
           "pricingType": "unit_price",
           "unit": "EUR/m2",
-          "value": 0.007125
+          "value": 0.00627
         },
+        "referencePoints": [
+          {
+            "areaSquareMeters": 250,
+            "unitPrice": 4.2
+          },
+          {
+            "areaSquareMeters": 500,
+            "unitPrice": 1.85
+          },
+          {
+            "areaSquareMeters": 1000,
+            "unitPrice": 0.82
+          },
+          {
+            "areaSquareMeters": 1500,
+            "unitPrice": 0.55
+          },
+          {
+            "areaSquareMeters": 2000,
+            "unitPrice": 0.41
+          },
+          {
+            "areaSquareMeters": 3000,
+            "unitPrice": 0.27
+          },
+          {
+            "areaSquareMeters": 4000,
+            "unitPrice": 0.17
+          },
+          {
+            "areaSquareMeters": 5000,
+            "unitPrice": 0.13
+          },
+          {
+            "areaSquareMeters": 15000,
+            "unitPrice": 0.033
+          },
+          {
+            "areaSquareMeters": 100000,
+            "unitPrice": 0.00627
+          }
+        ],
+        "_referencePointsComment": "Zwischenwerte werden proportional ohne Stufen berechnet. Unter 250 m2 und ueber 100000 m2 wird die Kurve anhand der jeweils naechsten beiden Referenzpunkte fortgeschrieben.",
         "curveExponent": {
-          "label": "Kurven-Exponent",
+          "label": "Kurvenstaerke",
           "pricingType": "curve_exponent",
           "unit": "x",
-          "value": 1.6
+          "value": 1.3
         }
       },
       "buildingDeviationUnitPrice": {
         "label": "Gebaeude-Abweichung vom Standard",
         "pricingType": "delta_unit_price",
         "unit": "EUR/Gebaeude",
-        "value": 3
+        "value": 4
       },
       "roadDeviationUnitPrice": {
         "label": "Strassen-Abweichung vom Standard",

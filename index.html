@@ -8406,6 +8406,70 @@ out tags qt;`;
           }
 
           const numericArea = Math.max(0, getProjectAnalysisPriceNumber(areaSquareMeters));
+          const configuredReferencePoints = Array.isArray(projectPriceAreaPricing.referencePoints)
+            ? projectPriceAreaPricing.referencePoints
+                .map(entry => {
+                  const area = Math.max(
+                    0,
+                    getProjectAnalysisPriceNumber(
+                      entry?.areaSquareMeters ?? entry?.area ?? entry?.squareMeters
+                    )
+                  );
+                  const unitPrice = Math.max(
+                    0,
+                    getProjectAnalysisPriceNumber(
+                      entry?.unitPrice ?? entry?.price ?? entry?.value
+                    )
+                  );
+                  if (!(area > 0) || !(unitPrice > 0)) return null;
+                  return { areaSquareMeters: area, unitPrice };
+                })
+                .filter(Boolean)
+                .sort((a, b) => a.areaSquareMeters - b.areaSquareMeters)
+            : [];
+          if (configuredReferencePoints.length >= 2) {
+            if (!(numericArea > 0)) {
+              return configuredReferencePoints[0].unitPrice;
+            }
+
+            let lowerPoint = configuredReferencePoints[0];
+            let upperPoint = configuredReferencePoints[1];
+
+            if (numericArea <= configuredReferencePoints[0].areaSquareMeters) {
+              lowerPoint = configuredReferencePoints[0];
+              upperPoint = configuredReferencePoints[1];
+            } else if (
+              numericArea >=
+              configuredReferencePoints[configuredReferencePoints.length - 1].areaSquareMeters
+            ) {
+              lowerPoint = configuredReferencePoints[configuredReferencePoints.length - 2];
+              upperPoint = configuredReferencePoints[configuredReferencePoints.length - 1];
+            } else {
+              for (let index = 1; index < configuredReferencePoints.length; index += 1) {
+                const candidateUpper = configuredReferencePoints[index];
+                if (numericArea <= candidateUpper.areaSquareMeters) {
+                  lowerPoint = configuredReferencePoints[index - 1];
+                  upperPoint = candidateUpper;
+                  break;
+                }
+              }
+            }
+
+            const areaRatio = upperPoint.areaSquareMeters / lowerPoint.areaSquareMeters;
+            const priceRatio = upperPoint.unitPrice / lowerPoint.unitPrice;
+            if (!(areaRatio > 1) || !(priceRatio > 0)) {
+              return lowerPoint.unitPrice;
+            }
+
+            const localPower = Math.log(priceRatio) / Math.log(areaRatio);
+            const normalizedArea = numericArea / lowerPoint.areaSquareMeters;
+            const unitPrice = lowerPoint.unitPrice * Math.pow(normalizedArea, localPower);
+            return Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : lowerPoint.unitPrice;
+          }
+          if (configuredReferencePoints.length === 1) {
+            return configuredReferencePoints[0].unitPrice;
+          }
+
           const smallProjectAreaSquareMeters = Math.max(
             1,
             getProjectAnalysisPriceNumber(
@@ -8428,30 +8492,34 @@ out tags qt;`;
               0.0095
           );
           const curveExponent = Math.max(
-            0.2,
-            getProjectAnalysisPriceNumber(projectPriceAreaPricing.curveExponent ?? 1.6) || 1.6
+            0.1,
+            getProjectAnalysisPriceNumber(projectPriceAreaPricing.curveExponent ?? 1) || 1
           );
 
-          if (!(largeProjectAreaSquareMeters > smallProjectAreaSquareMeters)) {
-            return numericArea <= smallProjectAreaSquareMeters
-              ? smallProjectUnitPrice
-              : largeProjectUnitPrice;
+          if (!(smallProjectAreaSquareMeters > 0) || !(smallProjectUnitPrice > 0)) {
+            return fixedAreaUnitPrice;
           }
-          if (numericArea <= smallProjectAreaSquareMeters) {
+          if (!(numericArea > 0)) {
             return smallProjectUnitPrice;
           }
-          if (numericArea >= largeProjectAreaSquareMeters) {
-            return largeProjectUnitPrice;
+          if (
+            !(largeProjectAreaSquareMeters > smallProjectAreaSquareMeters) ||
+            !(largeProjectUnitPrice > 0)
+          ) {
+            return smallProjectUnitPrice;
           }
 
-          const ratio =
-            (numericArea - smallProjectAreaSquareMeters) /
-            (largeProjectAreaSquareMeters - smallProjectAreaSquareMeters);
-          const easedRatio = Math.pow(Math.min(Math.max(ratio, 0), 1), curveExponent);
-          return (
-            smallProjectUnitPrice +
-            (largeProjectUnitPrice - smallProjectUnitPrice) * easedRatio
-          );
+          const areaRatioBase = largeProjectAreaSquareMeters / smallProjectAreaSquareMeters;
+          const priceRatioBase = largeProjectUnitPrice / smallProjectUnitPrice;
+          if (!(areaRatioBase > 1) || !(priceRatioBase > 0)) {
+            return smallProjectUnitPrice;
+          }
+
+          const basePower = Math.log(priceRatioBase) / Math.log(areaRatioBase);
+          const effectivePower = basePower * curveExponent;
+          const normalizedArea = Math.max(numericArea / smallProjectAreaSquareMeters, 1e-9);
+          const unitPrice = smallProjectUnitPrice * Math.pow(normalizedArea, effectivePower);
+          return Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : smallProjectUnitPrice;
         }
 
         function roundProjectAnalysisPriceUp(value) {
@@ -8578,7 +8646,7 @@ out tags qt;`;
           const benchmarkBuildingCount =
             (areaSquareMeters / 1000) *
             benchmarkBuildingsPer1000SquareMeters;
-          const buildingDeviationCount = buildingCount - benchmarkBuildingCount;
+          const buildingDeviationCount = Math.max(0, buildingCount - benchmarkBuildingCount);
           const buildingDeviationPrice = buildingDeviationCount * buildingDeviationUnitPrice;
           const buildingTotalPrice = buildingPrice + buildingDeviationPrice;
           const subtotal = areaPrice + buildingTotalPrice + roadTotalPrice;
@@ -8999,10 +9067,10 @@ out tags qt;`;
 
           section.appendChild(
             createProjectAnalysisPriceBreakdownRow(
-              `Gebäude-Abweichung (Ist ${projectAnalysisDecimalFormat.format(
+              `Gebäude-Mehrmenge (Ist ${projectAnalysisDecimalFormat.format(
                 priceSummary.buildingCount
               )} | Soll ${projectAnalysisDecimalFormat.format(priceSummary.benchmarkBuildingCount)})`,
-              formatProjectAnalysisSignedCurrency(priceSummary.buildingDeviationPrice)
+              formatProjectAnalysisCurrency(priceSummary.buildingDeviationPrice)
             )
           );
 
